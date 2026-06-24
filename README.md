@@ -1,36 +1,68 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Bajaj Finserv Health — Full Stack Engineering Challenge
+**Student:** Abhav Jindal
+**Roll Number:** 2310993759
+**Email:** abhav3759.beai23@chitkara.edu.in
 
-## Getting Started
+---
 
-First, run the development server:
+## What This Project Does
+
+This project implements a REST API (`POST /bfhl`) that accepts an array of directed node strings like `"A->B"`, processes them as a directed graph, and returns structured insights — identifying trees, detecting cycles, flagging invalid inputs, and computing hierarchy depths.
+
+---
+
+## My Approach
+
+### Backend (`app/bfhl/route.js`)
+
+I broke the problem into five clearly defined steps:
+
+**Step 1 — Validation & Deduplication**
+Each input string is trimmed and matched against the regex `^([A-Z])->([A-Z])$`. Self-loops (e.g. `A->A`) are rejected. If a valid edge has been seen before, it goes into `duplicate_edges` (exactly once per unique duplicate, not per occurrence).
+
+**Step 2 — Graph Construction with First-Parent Rule**
+I use a `Map` called `childParent` to track which parent each node has been assigned. When an edge arrives and the child already has a parent (diamond/multi-parent case), the new edge is silently discarded — first encountered wins.
+
+**Step 3 — Connected Component Discovery via BFS**
+I build an undirected adjacency map from accepted edges and run a BFS to find connected components, preserving the order components appear in the input.
+
+**Step 4 — Cycle Detection & Tree Analysis**
+For each component I run a 3-colour DFS (white → grey → black). If any grey node is visited again, there's a cycle. Cyclic components use the lexicographically smallest node as root. Valid trees compute depth recursively and track the deepest root (with lexicographic tiebreaking).
+
+**Step 5 — Response Assembly**
+All fields (`user_id`, `email_id`, `college_roll_number`, `hierarchies`, `invalid_entries`, `duplicate_edges`, `summary`) are assembled and returned as JSON with CORS headers.
+
+### Frontend (`app/page.js`)
+
+Built as a Next.js App Router client component using React hooks (`useState`, `useCallback`). The input area accepts either raw JSON (`{ "data": [...] }`) or plain comma/newline separated edges. Results are displayed in a clean table layout with:
+- Summary metrics (total trees, total cycles, largest tree root)
+- Hierarchies table (root, type, depth, structure)
+- Invalid entries table
+- Duplicate edges table
+- Raw JSON viewer toggle
+
+---
+
+## Tech Stack
+- **Framework:** Next.js 16 (App Router)
+- **Language:** JavaScript
+- **Styling:** Vanilla CSS (custom properties, no Tailwind)
+- **Deployment:** Vercel
+
+---
+
+## Running Locally
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then open [http://localhost:3000](http://localhost:3000)
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+To test the API directly:
+```bash
+curl -X POST http://localhost:3000/bfhl \
+  -H "Content-Type: application/json" \
+  -d '{"data": ["A->B", "A->C", "B->D", "X->Y", "Y->X", "hello"]}'
+```

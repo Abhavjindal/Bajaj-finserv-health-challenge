@@ -1,101 +1,115 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
+
+// Attempt to parse whatever the user typed into a valid { data: [...] } payload
+function parseInput(raw) {
+  const trimmed = raw.trim();
+  if (!trimmed) throw new Error("Input is empty.");
+
+  // Try JSON first
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (parsed && Array.isArray(parsed.data)) return parsed;
+    throw new Error("JSON must have a 'data' array field.");
+  } catch (_) {
+    // Fall back: treat as newline / comma separated edge strings
+    const items = trimmed
+      .split(/[\n,]+/)
+      .map(s => s.trim())
+      .filter(Boolean);
+    if (items.length === 0) throw new Error("No edges found in input.");
+    return { data: items };
+  }
+}
 
 export default function Home() {
-  const [inputText, setInputText] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [result, setResult] = useState(null);
-  const [activeTab, setActiveTab] = useState("table");
+  const [inputText,  setInputText]  = useState("");
+  const [loading,    setLoading]    = useState(false);
+  const [apiError,   setApiError]   = useState(null);
+  const [response,   setResponse]   = useState(null);
+  const [activeView, setActiveView] = useState("table"); // "table" | "json"
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
-    setIsLoading(true);
-    setError(null);
-    setResult(null);
+    setLoading(true);
+    setApiError(null);
+    setResponse(null);
 
     try {
-      let payload;
-      try {
-        payload = JSON.parse(inputText);
-      } catch (err) {
-        const lines = inputText
-          .split(/[\n,]+/)
-          .map((item) => item.trim())
-          .filter((item) => item.length > 0);
-        if (lines.length > 0) {
-          payload = { data: lines };
-        } else {
-          throw new Error("Input must be a valid JSON object or a comma-separated list of edges.");
-        }
-      }
+      const payload = parseInput(inputText);
 
-      if (!payload || !Array.isArray(payload.data)) {
-        throw new Error("Payload must contain a 'data' array of edge strings.");
-      }
-
-      const response = await fetch("/bfhl", {
-        method: "POST",
+      const res  = await fetch("/bfhl", {
+        method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body:    JSON.stringify(payload),
       });
 
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || `HTTP error! Status: ${response.status}`);
-      }
-      setResult(data);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || `Request failed (${res.status})`);
+      setResponse(json);
     } catch (err) {
-      setError(err.message || "Something went wrong.");
+      setApiError(err.message || "Unexpected error.");
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
+  }, [inputText]);
+
+  const handleClear = () => {
+    setInputText("");
+    setResponse(null);
+    setApiError(null);
   };
 
   return (
     <>
-      {/* Header */}
       <header className="app-header">
         <div className="header-container">
           <div className="brand-section">
             <div className="brand-logo">T</div>
-            <h1 className="brand-name">Tree & Cycle Analyzer</h1>
+            <h1 className="brand-name">Tree &amp; Cycle Analyzer</h1>
           </div>
         </div>
       </header>
 
-      {/* Main Body */}
       <main className="app-main">
-        {/* Left: Input */}
+        {/* ── Left: Input Panel ── */}
         <section className="glass-panel fade-in">
           <div>
             <h2 className="panel-title">Graph Edge Input</h2>
-            <p className="panel-subtitle">Enter parent-child directed relationships</p>
+            <p className="panel-subtitle">Enter directed edges in the format A-&gt;B</p>
           </div>
 
           <form onSubmit={handleSubmit} className="form-group">
             <div className="form-label">
               <span>Input Data</span>
-              <span className="label-hint">JSON Array</span>
+              <span className="label-hint">JSON or comma-separated</span>
             </div>
             <textarea
+              id="edge-input"
               className="textarea-input"
               value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              placeholder={`{\n  "data": ["A->B", "A->C"]\n}`}
+              onChange={e => setInputText(e.target.value)}
+              placeholder={'{\n  "data": ["A->B", "B->C"]\n}'}
               spellCheck="false"
+              autoComplete="off"
             />
             <div className="input-actions">
-              <button type="submit" className="btn btn-primary" disabled={isLoading}>
-                {isLoading && <div className="spinner"></div>}
-                {isLoading ? "Analyzing..." : "Analyze Graph"}
+              <button
+                id="submit-btn"
+                type="submit"
+                className="btn btn-primary"
+                disabled={loading}
+              >
+                {loading && <div className="spinner" />}
+                {loading ? "Analyzing…" : "Analyze Graph"}
               </button>
               <button
+                id="clear-btn"
                 type="button"
                 className="btn btn-secondary"
-                onClick={() => { setInputText(""); setResult(null); setError(null); }}
-                disabled={isLoading}
+                onClick={handleClear}
+                disabled={loading}
               >
                 Clear
               </button>
@@ -103,187 +117,200 @@ export default function Home() {
           </form>
         </section>
 
-        {/* Right: Results */}
+        {/* ── Right: Results Panel ── */}
         <section className="dashboard-layout fade-in">
+
           {/* Error */}
-          {error && (
-            <div className="error-banner">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="12" y1="8" x2="12" y2="12"></line>
-                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          {apiError && (
+            <div className="error-banner" role="alert">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8"  x2="12"   y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
               </svg>
-              <span><strong>Error:</strong> {error}</span>
+              <span><strong>Error: </strong>{apiError}</span>
             </div>
           )}
 
-          {/* Empty state */}
-          {!result && !error && !isLoading && (
-            <div className="glass-panel" style={{ alignItems: "center", justifyContent: "center", minHeight: "300px", textAlign: "center" }}>
-              <p className="panel-title" style={{ fontSize: "1rem" }}>No Data Yet</p>
-              <p className="panel-subtitle">Enter edge data on the left and click Analyze Graph.</p>
+          {/* Empty / idle state */}
+          {!response && !apiError && !loading && (
+            <div className="glass-panel"
+              style={{ alignItems:"center", justifyContent:"center",
+                       minHeight:"300px", textAlign:"center" }}>
+              <p className="panel-title"  style={{ fontSize:"1rem" }}>No Results Yet</p>
+              <p className="panel-subtitle">
+                Paste your edge list on the left and click <strong>Analyze Graph</strong>.
+              </p>
             </div>
           )}
 
           {/* Loading */}
-          {isLoading && (
-            <div className="glass-panel" style={{ alignItems: "center", justifyContent: "center", minHeight: "300px" }}>
-              <div className="spinner" style={{ width: "32px", height: "32px", borderWidth: "3px", marginBottom: "1rem" }}></div>
-              <p className="panel-subtitle">Processing...</p>
+          {loading && (
+            <div className="glass-panel"
+              style={{ alignItems:"center", justifyContent:"center", minHeight:"300px" }}>
+              <div className="spinner"
+                style={{ width:32, height:32, borderWidth:3, marginBottom:"1rem" }} />
+              <p className="panel-subtitle">Processing graph…</p>
             </div>
           )}
 
-          {result && (
+          {/* Results */}
+          {response && (
             <>
-              {/* Summary Metrics */}
+              {/* Summary row */}
               <div className="metrics-grid">
                 <div className="metric-card blue">
                   <span className="metric-label">Total Trees</span>
-                  <span className="metric-value">{result.summary.total_trees}</span>
+                  <span className="metric-value">{response.summary.total_trees}</span>
                 </div>
                 <div className="metric-card purple">
                   <span className="metric-label">Total Cycles</span>
-                  <span className="metric-value">{result.summary.total_cycles}</span>
+                  <span className="metric-value">{response.summary.total_cycles}</span>
                 </div>
                 <div className="metric-card green">
                   <span className="metric-label">Largest Tree Root</span>
-                  <span className="metric-value">{result.summary.largest_tree_root || "N/A"}</span>
+                  <span className="metric-value">
+                    {response.summary.largest_tree_root || "—"}
+                  </span>
                 </div>
               </div>
 
-              {/* Tabs */}
+              {/* View toggle */}
               <div className="tab-bar">
-                <button
-                  className={`btn ${activeTab === "table" ? "btn-primary" : "btn-secondary"}`}
-                  style={{ padding: "0.45rem 1rem", fontSize: "0.82rem" }}
-                  onClick={() => setActiveTab("table")}
-                >
-                  Table View
-                </button>
-                <button
-                  className={`btn ${activeTab === "json" ? "btn-primary" : "btn-secondary"}`}
-                  style={{ padding: "0.45rem 1rem", fontSize: "0.82rem" }}
-                  onClick={() => setActiveTab("json")}
-                >
-                  Raw JSON
-                </button>
+                {["table", "json"].map(tab => (
+                  <button
+                    key={tab}
+                    className={`btn ${activeView === tab ? "btn-primary" : "btn-secondary"}`}
+                    style={{ padding:"0.45rem 1rem", fontSize:"0.82rem" }}
+                    onClick={() => setActiveView(tab)}
+                  >
+                    {tab === "table" ? "Table View" : "Raw JSON"}
+                  </button>
+                ))}
               </div>
 
-              {activeTab === "table" ? (
+              {activeView === "table" ? (
                 <>
-                  {/* Hierarchies Table */}
-                  <div className="table-section">
-                    <h3 className="section-title">Hierarchies</h3>
-                    <div className="table-wrapper">
-                      <table className="data-table">
-                        <thead>
-                          <tr>
-                            <th>#</th>
-                            <th>Root</th>
-                            <th>Type</th>
-                            <th>Depth</th>
-                            <th>Children</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {result.hierarchies.length === 0 ? (
-                            <tr><td colSpan={5} className="empty-cell">No hierarchies found.</td></tr>
-                          ) : (
-                            result.hierarchies.map((h, i) => (
-                              <tr key={i}>
-                                <td>{i + 1}</td>
-                                <td><span className="root-tag">{h.root}</span></td>
-                                <td>
-                                  <span className={`type-badge ${h.has_cycle ? "type-cycle" : "type-tree"}`}>
-                                    {h.has_cycle ? "Cycle" : "Tree"}
-                                  </span>
-                                </td>
-                                <td>{h.has_cycle ? "—" : h.depth}</td>
-                                <td className="children-cell">
-                                  {h.has_cycle
-                                    ? <span className="empty-state">Loop detected</span>
-                                    : <span className="mono-text">{JSON.stringify(h.tree)}</span>
-                                  }
-                                </td>
-                              </tr>
-                            ))
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
+                  {/* Hierarchies */}
+                  <HierarchiesTable rows={response.hierarchies} />
 
-                  {/* Invalid Entries + Duplicate Edges Tables */}
+                  {/* Invalid + Duplicates side by side */}
                   <div className="details-grid">
-                    <div className="table-section">
-                      <h3 className="section-title">Invalid Entries ({result.invalid_entries.length})</h3>
-                      <div className="table-wrapper">
-                        <table className="data-table">
-                          <thead>
-                            <tr><th>#</th><th>Entry</th></tr>
-                          </thead>
-                          <tbody>
-                            {result.invalid_entries.length === 0 ? (
-                              <tr><td colSpan={2} className="empty-cell">None</td></tr>
-                            ) : (
-                              result.invalid_entries.map((item, i) => (
-                                <tr key={i}>
-                                  <td>{i + 1}</td>
-                                  <td><span className="badge-item invalid">{item || '""'}</span></td>
-                                </tr>
-                              ))
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-
-                    <div className="table-section">
-                      <h3 className="section-title">Duplicate Edges ({result.duplicate_edges.length})</h3>
-                      <div className="table-wrapper">
-                        <table className="data-table">
-                          <thead>
-                            <tr><th>#</th><th>Edge</th></tr>
-                          </thead>
-                          <tbody>
-                            {result.duplicate_edges.length === 0 ? (
-                              <tr><td colSpan={2} className="empty-cell">None</td></tr>
-                            ) : (
-                              result.duplicate_edges.map((item, i) => (
-                                <tr key={i}>
-                                  <td>{i + 1}</td>
-                                  <td><span className="badge-item duplicate">{item}</span></td>
-                                </tr>
-                              ))
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
+                    <SimpleTable
+                      title={`Invalid Entries (${response.invalid_entries.length})`}
+                      header="Entry"
+                      items={response.invalid_entries}
+                      badgeClass="invalid"
+                      emptyLabel="None"
+                    />
+                    <SimpleTable
+                      title={`Duplicate Edges (${response.duplicate_edges.length})`}
+                      header="Edge"
+                      items={response.duplicate_edges}
+                      badgeClass="duplicate"
+                      emptyLabel="None"
+                    />
                   </div>
                 </>
               ) : (
-                /* Raw JSON */
-                <div className="json-panel">
-                  <div className="json-header">
-                    <h3 className="section-title" style={{ fontSize: "1rem" }}>API Response</h3>
-                    <button
-                      className="btn btn-secondary"
-                      style={{ padding: "0.25rem 0.75rem", fontSize: "0.75rem" }}
-                      onClick={() => navigator.clipboard.writeText(JSON.stringify(result, null, 2))}
-                    >
-                      Copy
-                    </button>
-                  </div>
-                  <pre className="pre-code">
-                    <code>{JSON.stringify(result, null, 2)}</code>
-                  </pre>
-                </div>
+                <JsonViewer data={response} />
               )}
             </>
           )}
         </section>
       </main>
     </>
+  );
+}
+
+// ── Sub-components ─────────────────────────────────────────────────────────
+
+function HierarchiesTable({ rows }) {
+  return (
+    <div className="table-section">
+      <h3 className="section-title">Hierarchies</h3>
+      <div className="table-wrapper">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Root</th>
+              <th>Type</th>
+              <th>Depth</th>
+              <th>Structure</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr><td colSpan={5} className="empty-cell">No components found.</td></tr>
+            ) : rows.map((h, i) => (
+              <tr key={i}>
+                <td>{i + 1}</td>
+                <td><span className="root-tag">{h.root}</span></td>
+                <td>
+                  <span className={`type-badge ${h.has_cycle ? "type-cycle" : "type-tree"}`}>
+                    {h.has_cycle ? "Cycle" : "Tree"}
+                  </span>
+                </td>
+                <td>{h.has_cycle ? "—" : h.depth}</td>
+                <td className="children-cell">
+                  {h.has_cycle
+                    ? <em className="empty-state">Loop detected</em>
+                    : <span className="mono-text">{JSON.stringify(h.tree)}</span>
+                  }
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function SimpleTable({ title, header, items, badgeClass, emptyLabel }) {
+  return (
+    <div className="table-section">
+      <h3 className="section-title">{title}</h3>
+      <div className="table-wrapper">
+        <table className="data-table">
+          <thead>
+            <tr><th>#</th><th>{header}</th></tr>
+          </thead>
+          <tbody>
+            {items.length === 0 ? (
+              <tr><td colSpan={2} className="empty-cell">{emptyLabel}</td></tr>
+            ) : items.map((item, i) => (
+              <tr key={i}>
+                <td>{i + 1}</td>
+                <td>
+                  <span className={`badge-item ${badgeClass}`}>{item || '""'}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function JsonViewer({ data }) {
+  const text = JSON.stringify(data, null, 2);
+  return (
+    <div className="json-panel">
+      <div className="json-header">
+        <h3 className="section-title" style={{ fontSize:"1rem" }}>API Response</h3>
+        <button
+          className="btn btn-secondary"
+          style={{ padding:"0.25rem 0.75rem", fontSize:"0.75rem" }}
+          onClick={() => navigator.clipboard.writeText(text)}
+        >
+          Copy
+        </button>
+      </div>
+      <pre className="pre-code"><code>{text}</code></pre>
+    </div>
   );
 }

@@ -74,9 +74,6 @@ export default function Home() {
             <div className="brand-logo">T</div>
             <h1 className="brand-name">Tree & Cycle Analyzer</h1>
           </div>
-          <div className="credentials-pill">
-            Roll: <span>2310993759</span> | Email: <span>abhav3759.beai23@chitkara.edu.in</span>
-          </div>
         </div>
       </header>
 

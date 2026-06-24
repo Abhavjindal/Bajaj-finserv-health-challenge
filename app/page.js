@@ -362,11 +362,6 @@ export default function Home() {
           )}
         </section>
       </main>
-
-      {/* Footer */}
-      <footer className="app-footer">
-        Chitkara Full Stack Engineering Challenge &copy; 2026. Made with ❤️ by Abhav.
-      </footer>
     </>
   );
 }

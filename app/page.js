@@ -46,9 +46,7 @@ const SAMPLES = [
 ];
 
 export default function Home() {
-  const [inputText, setInputText] = useState(
-    JSON.stringify({ data: SAMPLES[0].data }, null, 2)
-  );
+  const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);

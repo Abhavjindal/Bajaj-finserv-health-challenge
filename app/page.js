@@ -2,48 +2,6 @@
 
 import { useState } from "react";
 
-// Preset payload samples for easy testing by the evaluator
-const SAMPLES = [
-  {
-    name: "Challenge Example",
-    description: "Mixed trees, cycle, duplicates, and invalids",
-    data: [
-      "A->B", "A->C", "B->D", "C->E", "E->F",
-      "X->Y", "Y->Z", "Z->X",
-      "P->Q", "Q->R",
-      "G->H", "G->H", "G->I",
-      "hello", "1->2", "A->"
-    ]
-  },
-  {
-    name: "Standard Trees",
-    description: "Multiple clean independent trees",
-    data: [
-      "M->N", "M->O", "N->P", "Q->R", "R->S", "T->U"
-    ]
-  },
-  {
-    name: "Pure Cycle",
-    description: "All nodes form a single loop",
-    data: [
-      "A->B", "B->C", "C->D", "D->A"
-    ]
-  },
-  {
-    name: "Diamond Conflicts",
-    description: "Multi-parent inputs resolving first-come-first-served",
-    data: [
-      "A->D", "B->D", "C->D", "A->B", "B->E"
-    ]
-  },
-  {
-    name: "Invalid Edge Formats",
-    description: "Various malformed edges",
-    data: [
-      "hello", "1->2", "A-B", "AB->C", "A->", "->B", "", " A->A "
-    ]
-  }
-];
 
 export default function Home() {
   const [inputText, setInputText] = useState("");
@@ -52,10 +10,6 @@ export default function Home() {
   const [result, setResult] = useState(null);
   const [activeTab, setActiveTab] = useState("visual"); // visual | json
 
-  // Select a preset sample
-  const handleSelectSample = (sample) => {
-    setInputText(JSON.stringify({ data: sample.data }, null, 2));
-  };
 
   // Submit request to local API
   const handleSubmit = async (e) => {
@@ -163,26 +117,6 @@ export default function Home() {
             </div>
           </form>
 
-          <div>
-            <h3 className="panel-subtitle" style={{ fontWeight: 600, color: "var(--text-primary)", marginBottom: "0.5rem" }}>
-              Sample Presets
-            </h3>
-            <div className="samples-list">
-              {SAMPLES.map((sample, idx) => (
-                <div
-                  key={idx}
-                  className="sample-item"
-                  onClick={() => handleSelectSample(sample)}
-                  title={sample.description}
-                >
-                  <span className="sample-name">{sample.name}</span>
-                  <span className="sample-preview">
-                    {JSON.stringify(sample.data).substring(0, 30)}...
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
         </section>
 
         {/* Right Column: Dynamic Results Dashboard */}
